@@ -28,7 +28,7 @@ public class Main {
 	public static void processPage(String URL) throws SQLException, IOException{
 
 			Document doc = Jsoup.connect(URL).get();
-
+			System.out.println(doc.html());
 			// Obtiene comentarios
 			Elements questions = doc.select("a[href]");
 			for(Element link: questions){
