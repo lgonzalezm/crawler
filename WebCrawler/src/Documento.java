@@ -1,7 +1,6 @@
 
 public class Documento {
 
-	private String idMongo;
 	private String marca;
 	private String modelo;
 	private String so;
@@ -28,7 +27,6 @@ public class Documento {
 	
 	public Documento() {
 		super();
-		this.idMongo = "";
 		this.marca = "";
 		this.modelo = "";
 		this.so = "";
@@ -50,13 +48,6 @@ public class Documento {
 		this.caracteristica = "";
 		this.rendimiento = "";
 		this.resumenMovil = "";
-	}
-	
-	public String getIdMongo() {
-		return idMongo;
-	}
-	public void setIdMongo(String idMongo) {
-		this.idMongo = idMongo;
 	}
 	public String getMarca() {
 		return marca;
