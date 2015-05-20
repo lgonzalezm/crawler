@@ -3,24 +3,24 @@ public class Documento {
 
 	private String marca;
 	private String modelo;
-	private String so;
-	private String annio;
-	private String comentarios;
-	private String network;
-	private String display;
-	private String procesador;
-	private String ram;
-	private String gpu;
-	private String sd;
-	private String camaraPrimaria;
-	private String camaraSecundaria;
-	private String bateria;
-	private String memoriaInterna;
-	private String link;
-	private String popularidad;
-	private String diseno;
-	private String caracteristica;
-	private String rendimiento;
+	private String so;//
+	private String annio;//
+	private String comentarios;//
+	private String network;//
+	private String display;//
+	private String procesador;//
+	private String ram;//
+	private String gpu;//
+	private String sd;//
+	private String camaraPrimaria;//
+	private String camaraSecundaria;//
+	private String bateria;//
+	private String memoriaInterna;//
+	private String link;//
+	private String popularidad;//
+	private String diseno;//
+	private String caracteristica;//
+	private String rendimiento;//
 	private String resumenMovil;
 	
 	

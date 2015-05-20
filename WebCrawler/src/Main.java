@@ -21,93 +21,103 @@ import com.mongodb.util.JSON;
  
  
 public class Main {
-	public final static String SEPARADOR = "110011";
-	public static void main(String[] args) throws SQLException, IOException {
-		//db.runSql2("TRUNCATE Record;");
-		//processPage("http://www.mit.edu");
-		/*processPage("http://m.gsmarena.com/apple_iphone_6_plus-reviews-6665.php");*/
-		//processPage("http://www.gsmarena.com/apple_iphone_6_plus-6665.php");
-		//processPage("http://www.gsmarena.com/apple_iphone_6-6378.php");
-		/*processPage("http://www.gsmarena.com/apple_iphone_5s-5685.php");
-		processPage("http://www.gsmarena.com/apple_iphone_5c-5690.php");
-		processPage("http://www.gsmarena.com/apple_iphone_5-4910.php");
-		processPage("http://www.gsmarena.com/apple_iphone_4s-4212.php");
-		processPage("http://www.gsmarena.com/apple_iphone_4-3275.php");
-		processPage("http://www.gsmarena.com/apple_iphone_4_cdma-3716.php");
-		processPage("http://www.gsmarena.com/apple_iphone_3gs-2826.php");
-		processPage("http://www.gsmarena.com/apple_iphone_3g-2424.php");
-		processPage("http://www.gsmarena.com/apple_iphone-1827.php");*/
-		
+	public final static String SEPARADOR = " 110011 ";
+	public static void main(String[] args) throws SQLException, IOException {		
 		List<String> urls = new ArrayList<String>();
 		List<Documento> documentos = new ArrayList<Documento>();
 		urls = getUrls();
 		Gson gson = new Gson();
+		Mongo mongoClient = new Mongo("localhost", 27017);  
+		DB db = mongoClient.getDB("TouchFinder"); 
+		DBCollection collection = db.getCollection("Documentos"); 
+		int count = 1;
 		for (String url : urls) {
+			System.out.println(count+" de "+urls.size()+") Procesando: "+url);
 			Documento doc = new Documento();
 			doc = processPage(url);
-			System.out.println(gson.toJson(doc));
-			documentos.add(doc);
+			DBObject dbObject = (DBObject)JSON.parse(gson.toJson(doc));
+			collection.insert(dbObject);
+			count++;
 		}
-		
-		
-		
-		
-//		Mongo mongoClient = new Mongo("localhost", 27017);  
-//		
-//		DB db = mongoClient.getDB("TouchFinder");  
-//		DBObject dbObject = (DBObject)JSON.parse(json);
-//		DBCollection collection = db.getCollection("Documentos"); 
-//		System.out.println(collection.insert(dbObject));
 	}
  
 	public static Documento processPage(String URL) throws SQLException, IOException{
 			Documento docu = new Documento();
 			Document doc = Jsoup.connect(URL).get();
+			docu.setLink(URL);
 			// Obtiene comentarios
 			Elements questions = doc.select("a[href]");
 			Elements tablasComponentes = doc.select("div#specs-list");
 			
 			for(Element link: tablasComponentes){
 				for (Element tabla : link.select("table")) {
+					
+					List<Element> th = tabla.select("th");
 					List<Element> tipos = tabla.select("td.ttl");
 					List<Element> dato = tabla.select("td.nfo");
 					
 					for (int i=0; i <  tipos.size(); i++) {
+						
 						if(tipos.get(i).html().contains("2G bands") || tipos.get(i).html().contains("3G bands") || tipos.get(i).html().contains("4G bands")){
-							System.out.println(dato.get(i).text());
 							docu.setNetwork(docu.getNetwork()+" "+dato.get(i).text());
 						}
 						if(tipos.get(i).html().contains("Primary") || tipos.get(i).html().contains("Secondary")){
-							System.out.println(dato.get(i).text());
 							if(tipos.get(i).html().contains("Primary"))docu.setCamaraPrimaria(dato.get(i).text());
 							if(tipos.get(i).html().contains("Secondary"))docu.setCamaraSecundaria(dato.get(i).text());
 						}
 						if(tipos.get(i).html().contains("OS") || tipos.get(i).html().contains("CPU") || tipos.get(i).html().contains("GPU") || tipos.get(i).html().contains("Chipset")){
-							System.out.println(dato.get(i).text());
 							if(tipos.get(i).html().contains("OS"))docu.setSo(dato.get(i).text());
 							if(tipos.get(i).html().contains("Chipset"))docu.setProcesador(dato.get(i).text());
 							if(tipos.get(i).html().contains("CPU"))docu.setProcesador(docu.getProcesador() +" "+dato.get(i).text());
+							if(tipos.get(i).html().contains("GPU"))docu.setGpu(dato.get(i).text());
 						}
 						if(tipos.get(i).html().contains("Size") || tipos.get(i).html().contains("Resolution")){
-							System.out.println(dato.get(i).text());
+							docu.setDisplay(docu.getDisplay()+" "+dato.get(i).text());
 						}
 						if(tipos.get(i).html().contains("Card slot") || tipos.get(i).html().contains("Internal")){
-							System.out.println(dato.get(i).text());
+							if(tipos.get(i).html().contains("Card slot")) docu.setSd(dato.get(i).text());
+							if(tipos.get(i).html().contains("Internal")) docu.setMemoriaInterna(dato.get(i).text());
+							if(docu.getMemoriaInterna().split(",").length > 1) docu.setRam(docu.getMemoriaInterna().split(",")[1]);
+							
 						}		
-						if(tipos.get(i).html().contains("Talk time") || tipos.get(i).html().contains("Stand-by") || tipos.get(i).html().contains("Music play")){
-							System.out.println(dato.get(i).text());
+						if(tipos.get(i).text().length()==1 && th.size() == 1 && th.get(0).text().contains("Battery")){
+							docu.setBateria(dato.get(i).text());
+						}
+						if(tipos.get(i).html().contains("Announced")){
+							if(dato.get(i).text().split(",").length > 0) docu.setAnnio(dato.get(i).text().split(",")[0]);
+							else docu.setAnnio(dato.get(i).text());
 						}
 					}
-					System.out.println(""); 
 				}
 			}
 			for(Element link: questions){
 				if(link.text().contains("Read opinions")){
-					System.out.println("Buscando Comentarios: ");
-					System.out.println();
-					//docu.setComentarios(procesaComentarios(link.attr("abs:href")));;
+					docu.setComentarios(procesaComentarios(link.attr("abs:href")));;
 				}		
 			}
+			
+			Elements modelo = doc.select("h1.section");
+			Elements popularidad = doc.select("li#popularity-vote").select("strong");
+			Elements diseno = doc.select("li#design-vote").select("strong");
+			Elements caracteristicas = doc.select("li#features-vote").select("strong");
+			Elements performance = doc.select("li#performance-vote").select("strong");
+			
+			if(modelo.size() > 0 && modelo.get(0).text().split(" ").length > 0){
+				docu.setMarca(modelo.get(0).text().split(" ")[0]);
+				docu.setModelo(modelo.get(0).text().replace(modelo.get(0).text().split(" ")[0], ""));
+			}
+			if(popularidad.size() == 1)
+				docu.setPopularidad(popularidad.get(0).text());
+			
+			if(diseno.size() == 1)
+				docu.setDiseno(diseno.get(0).text());
+				
+			if(caracteristicas.size() == 1)
+				docu.setCaracteristica(caracteristicas.get(0).text());
+	
+			if(performance.size() == 1)
+				docu.setRendimiento(performance.get(0).text());
+			
 			return docu;
 	}
 	
@@ -122,29 +132,24 @@ public class Main {
 				doc = Jsoup.connect(URLFinal).get();
 				Elements questions = doc.select("div.user-thread");
 				for(Element link: questions){
-					
 					for (Element element : link.select("p.uopin")) {
 						contadorComentarios++;
 						if(contadorComentarios == 1)comentarios = element.html().replace(element.select("a").toString(), "").replace("<br />", "") + SEPARADOR;
 						else comentarios = comentarios + element.html().replace(element.select("a").toString(), "").replace("<br />", "") + SEPARADOR;
-						//System.out.println(contadorComentarios+") "+ element.html().replace(element.select("a").toString(), "").replace("<br />", "")	);
-						//System.out.println();
-						
 					}
 				}
 			}
-			
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		//System.out.println(comentarios);
 		return comentarios;
 	}
 	
 	private static List<String> getUrls(){
 		List<String> urls = new ArrayList<String>();
 		urls.add("http://www.gsmarena.com/samsung_galaxy_tab_3_v-7134.php");
-		/*urls.add("http://www.gsmarena.com/samsung_galaxy_tab_a_9_7-7122.php");
+		urls.add("http://www.gsmarena.com/samsung_galaxy_tab_a_9_7-7122.php");
 		urls.add("http://www.gsmarena.com/samsung_galaxy_tab_a_8_0-7121.php");
 		urls.add("http://www.gsmarena.com/samsung_galaxy_xcover_3-6990.php");
 		urls.add("http://www.gsmarena.com/samsung_galaxy_s6_edge_%28cdma%29-7166.php");
@@ -534,7 +539,6 @@ public class Main {
 		urls.add("http://www.gsmarena.com/motorola_xt760-4820.php");
 		urls.add("http://www.gsmarena.com/motorola_atrix_tv_xt687-4921.php");
 		urls.add("http://www.gsmarena.com/motorola_atrix_tv_xt682-4797.php");
-		
 		urls.add("http://www.gsmarena.com/motorola_motosmart_me_xt303-5153.php");
 		urls.add("http://www.gsmarena.com/motorola_razr_v_xt885-5224.php");
 		urls.add("http://www.gsmarena.com/motorola_razr_v_xt889-4856.php");
@@ -599,7 +603,591 @@ public class Main {
 		urls.add("http://www.gsmarena.com/motorola_droid_2-3475.php");
 		urls.add("http://www.gsmarena.com/motorola_mt810lx-3626.php");
 		urls.add("http://www.gsmarena.com/motorola_xt810-3521.php");
-		urls.add("http://www.gsmarena.com/motorola_xt806-3476.php");*/
+		urls.add("http://www.gsmarena.com/motorola_xt806-3476.php");
+		
+		urls.add("http://www.gsmarena.com/alcatel_flash-7189.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_3_%285_5%29-7081.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_3_%284_7%29-7080.php");
+		urls.add("http://www.gsmarena.com/alcatel_orange_klif-7092.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%285_5%29_lte-7093.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%285_5%29-7094.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%288%29_3g-7098.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%284%29-6933.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%284_5%29-6934.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%285%29-6935.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_10-6936.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%287%29-7095.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%287%29_3g-7096.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%287%29_lte-7097.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%283_5%29_firefox-6979.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_3_%283_5%29-6932.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_d3-6774.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_d1-6773.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_2_%285%29-6700.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_2_%285%29_premium-7123.php");
+		urls.add("http://www.gsmarena.com/alcatel_fire_c_2g-6712.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_icon-6732.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_2_%284%29-6699.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_2_%284_5%29_dual_sim-6657.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_2_%284_5%29-6656.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_fierce_2-7154.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_evolve_2-7153.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_8s-6655.php");
+		urls.add("http://www.gsmarena.com/alcatel_hero_8-6654.php");
+		urls.add("http://www.gsmarena.com/alcatel_2010-6695.php");
+		urls.add("http://www.gsmarena.com/alcatel_2012-6931.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_8-6459.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_c2-6516.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_d5-6599.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_pixi_2-6619.php");
+		urls.add("http://www.gsmarena.com/alcatel_hero_2-6653.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_7s-6165.php");
+		urls.add("http://www.gsmarena.com/alcatel_pixi_7-6164.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_s9-6153.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_s7-6152.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_2-6130.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_2_s-6134.php");
+		urls.add("http://www.gsmarena.com/alcatel_fire_c-6138.php");
+		urls.add("http://www.gsmarena.com/alcatel_fire_e-6139.php");
+		urls.add("http://www.gsmarena.com/alcatel_fire_s-6140.php");
+		urls.add("http://www.gsmarena.com/alcatel_fire_7-6141.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_s3-6151.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_2_mini_s-6135.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_2_mini-6131.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_fit-6132.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_8-5947.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_c9-5938.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_x+-5937.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_c1-5691.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_c3-5687.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_c5-5692.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_c7-5693.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_evolve-5740.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_fierce-5741.php");
+		urls.add("http://www.gsmarena.com/alcatel_pop_7-5939.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_alpha-5671.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_evo_8hd-5680.php");
+		urls.add("http://www.gsmarena.com/alcatel_hero-5672.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_s-5668.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_mini-5669.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_t10-5449.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_snap_lte-5335.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_pixi-5681.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_snap-5334.php");
+		urls.add("http://www.gsmarena.com/alcatel_idol_x-5318.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_fire-5319.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_star-5296.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_scribe_easy-5332.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_evo_7-5236.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_t_pop-5229.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_idol-5230.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_idol_ultra-5231.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_tab_7_hd-5232.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_tab_7-5233.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_tab_8_hd-5234.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_evo_7_hd-5235.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_s_pop-5228.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_m_pop-5242.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_x_pop-5227.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_scribe_hd_lte-5226.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_983-5139.php");
+		urls.add("http://www.gsmarena.com/alcatel_view-5159.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_scribe_hd-5218.php");
+		urls.add("http://www.gsmarena.com/alcatel_one_touch_scribe_x-5225.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_978-5103.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_988_shockwave-5080.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_993-4846.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_903-4845.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_992d-5866.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_997-5165.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_997d-5110.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_838-4844.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_668-4843.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_605-4842.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_986-4780.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_991-4733.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_916-4732.php");
+		urls.add("http://www.gsmarena.com/alcatel_ot_720-4731.php");
+		urls.add("http://www.gsmarena.com/blackberry_leap-7099.php");
+		urls.add("http://www.gsmarena.com/blackberry_classic_non_camera-7066.php");
+		urls.add("http://www.gsmarena.com/blackberry_porsche_design_p_9983-6691.php");
+		urls.add("http://www.gsmarena.com/blackberry_passport-6457.php");
+		urls.add("http://www.gsmarena.com/blackberry_classic-6458.php");
+		urls.add("http://www.gsmarena.com/blackberry_z3-6163.php");
+		urls.add("http://www.gsmarena.com/blackberry_porsche_design_p_9982-5856.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_9320-4458.php");
+		urls.add("http://www.gsmarena.com/blackberry_4g_lte_playbook-3846.php");
+		urls.add("http://www.gsmarena.com/blackberry_q10-5274.php");
+		urls.add("http://www.gsmarena.com/blackberry_z10-5251.php");
+		urls.add("http://www.gsmarena.com/blackberry_q5-5452.php");
+		urls.add("http://www.gsmarena.com/blackberry_9720-5625.php");
+		urls.add("http://www.gsmarena.com/blackberry_z30-5711.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_9220-4459.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_9380-4331.php");
+		urls.add("http://www.gsmarena.com/blackberry_bold_9790-4332.php");
+		urls.add("http://www.gsmarena.com/blackberry_porsche_design_p_9981-4288.php");
+		urls.add("http://www.gsmarena.com/blackberry_torch_9810-3723.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_9350-3756.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_9360-3722.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_9370-4112.php");
+		urls.add("http://www.gsmarena.com/blackberry_torch_9860-3926.php");
+		urls.add("http://www.gsmarena.com/blackberry_torch_9850-4088.php");
+		urls.add("http://www.gsmarena.com/blackberry_bold_touch_9900-3116.php");
+		urls.add("http://www.gsmarena.com/blackberry_bold_touch_9930-3755.php");
+		urls.add("http://www.gsmarena.com/blackberry_4g_playbook_hspa+-3900.php");
+		urls.add("http://www.gsmarena.com/blackberry_playbook_wimax-3899.php");
+		urls.add("http://www.gsmarena.com/blackberry_playbook-3830.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_3g_9100-3032.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_3g_9105-3287.php");
+		urls.add("http://www.gsmarena.com/blackberry_torch_9800-3203.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_3g_9300-3422.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_3g_9330-3591.php");
+		urls.add("http://www.gsmarena.com/blackberry_style_9670-3326.php");
+		urls.add("http://www.gsmarena.com/blackberry_bold_9780-3431.php");
+		urls.add("http://www.gsmarena.com/blackberry_bold_9650-3284.php");
+		urls.add("http://www.gsmarena.com/blackberry_bold_9700-2963.php");
+		urls.add("http://www.gsmarena.com/blackberry_storm2_9520-2962.php");
+		urls.add("http://www.gsmarena.com/blackberry_storm2_9550-2970.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8530-3592.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8520-2889.php");
+		urls.add("http://www.gsmarena.com/blackberry_tour_9630-2868.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_flip_8220-2521.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_flip_8230-3593.php");
+		urls.add("http://www.gsmarena.com/blackberry_storm_9530-2540.php");
+		urls.add("http://www.gsmarena.com/blackberry_storm_9500-2534.php");
+		urls.add("http://www.gsmarena.com/blackberry_storm3-3529.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8900-2604.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8980-3675.php");
+		urls.add("http://www.gsmarena.com/blackberry_bold_9000-2370.php");
+		urls.add("http://www.gsmarena.com/blackberry_volt-3754.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_8130-3933.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_8110-2226.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8310-2050.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8320-2121.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8330-3594.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_8120-2136.php");
+		urls.add("http://www.gsmarena.com/blackberry_8800-1911.php");
+		urls.add("http://www.gsmarena.com/blackberry_8830_world_edition-1968.php");
+		urls.add("http://www.gsmarena.com/blackberry_8820-2033.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_8300-1979.php");
+		urls.add("http://www.gsmarena.com/blackberry_pearl_8100-1701.php");
+		urls.add("http://www.gsmarena.com/blackberry_7130g-1622.php");
+		urls.add("http://www.gsmarena.com/blackberry_7130c-1623.php");
+		urls.add("http://www.gsmarena.com/blackberry_7290-1348.php");
+		urls.add("http://www.gsmarena.com/blackberry_7100v-1012.php");
+		urls.add("http://www.gsmarena.com/blackberry_7100t-1011.php");
+		urls.add("http://www.gsmarena.com/blackberry_7100x-1013.php");
+		urls.add("http://www.gsmarena.com/blackberry_8700c-1349.php");
+		urls.add("http://www.gsmarena.com/blackberry_8707v-1575.php");
+		urls.add("http://www.gsmarena.com/blackberry_7130v-1621.php");
+		urls.add("http://www.gsmarena.com/blackberry_7730-1010.php");
+		urls.add("http://www.gsmarena.com/blackberry_7230-1009.php");
+		urls.add("http://www.gsmarena.com/blackberry_6720-1008.php");
+		urls.add("http://www.gsmarena.com/blackberry_6230-1007.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_touch-3934.php");
+		urls.add("http://www.gsmarena.com/blackberry_curve_touch_cdma-3757.php");
+		urls.add("http://www.gsmarena.com/blackberry_playbook_2012-4460.php");
+		urls.add("http://www.gsmarena.com/blackberry_porsche_design_p_9531-4463.php");
+		urls.add("http://www.gsmarena.com/lenovo_k80-7216.php");
+		urls.add("http://www.gsmarena.com/lenovo_s60-7214.php");
+		urls.add("http://www.gsmarena.com/lenovo_a6000_plus-7197.php");
+		urls.add("http://www.gsmarena.com/lenovo_a1900-7192.php");
+		urls.add("http://www.gsmarena.com/lenovo_k3_note-7147.php");
+		urls.add("http://www.gsmarena.com/lenovo_vibe_shot-7046.php");
+		urls.add("http://www.gsmarena.com/lenovo_a7000-7088.php");
+		urls.add("http://www.gsmarena.com/lenovo_tab_2_a7_10-6955.php");
+		urls.add("http://www.gsmarena.com/lenovo_tab_2_a7_30-6956.php");
+		urls.add("http://www.gsmarena.com/lenovo_p70-7063.php");
+		urls.add("http://www.gsmarena.com/lenovo_ideapad_miix_300-7091.php");
+		urls.add("http://www.gsmarena.com/lenovo_tab_2_a8-7090.php");
+		urls.add("http://www.gsmarena.com/lenovo_tab_2_a10_70-7089.php");
+		urls.add("http://www.gsmarena.com/lenovo_a5000-7167.php");
+		urls.add("http://www.gsmarena.com/lenovo_a6000-6938.php");
+		urls.add("http://www.gsmarena.com/lenovo_p90-6920.php");
+		urls.add("http://www.gsmarena.com/lenovo_vibe_x2_pro-6919.php");
+		urls.add("http://www.gsmarena.com/lenovo_k3-6848.php");
+		urls.add("http://www.gsmarena.com/lenovo_a319-6789.php");
+		urls.add("http://www.gsmarena.com/lenovo_s856-6788.php");
+		urls.add("http://www.gsmarena.com/lenovo_a916-6855.php");
+		urls.add("http://www.gsmarena.com/lenovo_golden_warrior_note_8-6842.php");
+		urls.add("http://www.gsmarena.com/lenovo_s90_sisley-6739.php");
+		urls.add("http://www.gsmarena.com/lenovo_s580-6787.php");
+		urls.add("http://www.gsmarena.com/lenovo_a606-6746.php");
+		urls.add("http://www.gsmarena.com/lenovo_yoga_tablet_2_pro-6852.php");
+		urls.add("http://www.gsmarena.com/lenovo_yoga_tablet_2_10_1-6731.php");
+		urls.add("http://www.gsmarena.com/lenovo_yoga_tablet_2_8_0_-6730.php");
+		urls.add("http://www.gsmarena.com/lenovo_tab_s8-6681.php");
+		urls.add("http://www.gsmarena.com/lenovo_s939-6370.php");
+		urls.add("http://www.gsmarena.com/lenovo_golden_warrior_s8-6293.php");
+		urls.add("http://www.gsmarena.com/lenovo_golden_warrior_a8-6529.php");
+		urls.add("http://www.gsmarena.com/lenovo_vibe_z2_pro-6396.php");
+		urls.add("http://www.gsmarena.com/lenovo_a850+-6595.php");
+		urls.add("http://www.gsmarena.com/lenovo_vibe_z2-6642.php");
+		urls.add("http://www.gsmarena.com/lenovo_vibe_x2-6643.php");
+		urls.add("http://www.gsmarena.com/huawei_y625-7206.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_4c-7203.php");
+		urls.add("http://www.gsmarena.com/huawei_p8max-7200.php");
+		urls.add("http://www.gsmarena.com/huawei_p8_lite-7201.php");
+		urls.add("http://www.gsmarena.com/huawei_p8-7006.php");
+		urls.add("http://www.gsmarena.com/huawei_snapto-7187.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_x2-7075.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_6_plus-6777.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_gx1-6896.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y221-6908.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y520-6909.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y540-7049.php");
+		urls.add("http://www.gsmarena.com/huawei_y360-7077.php");
+		urls.add("http://www.gsmarena.com/huawei_y635-7076.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_mate7_monarch-6869.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_4x-6754.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_holly-6738.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_tablet-6705.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g7-6646.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y550-6676.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g620s-6677.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_4_play-6692.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g535-6678.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_3c_4g-6395.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_3x_pro-6398.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_6-6461.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_3c_play-6603.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_mate7-6543.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p7_sapphire_edition-6611.php");
+		urls.add("http://www.gsmarena.com/huawei_y300ii-6596.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g630-6499.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y330-6493.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_plus-6375.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p7-6124.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p7_mini-6332.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g730-6290.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y600-6278.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_10_link+-6169.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g6_4g-6168.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g6-6136.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_m1-6137.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_x1-6129.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y530-6103.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_3c-5903.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_3x_g750-5902.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y220-5921.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y320-5936.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_mate2_4g-5949.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p6_s-5979.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_7_youth2-5981.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g740-5840.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y511-5910.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_w2-5485.php");
+		urls.add("http://www.gsmarena.com/huawei_g6153-5739.php");
+		urls.add("http://www.gsmarena.com/huawei_g610s-5699.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g700-5633.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_3-5664.php");
+		urls.add("http://www.gsmarena.com/huawei_g3621l-5779.php");
+		urls.add("http://www.gsmarena.com/huawei_premia_4g_m931-5382.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y300-5386.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p6-5467.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_7_vogue-5539.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_7_youth-5698.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g525-5632.php");
+		urls.add("http://www.gsmarena.com/huawei_u8687_cronos-6893.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y210d-5365.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p2-5267.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g615-5257.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g526-5327.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g350-5648.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g350-5648.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_w1-5065.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_mate-5237.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_d2-5164.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g510-5250.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g500-5141.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y201_pro-5112.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_10_link-5507.php");
+		urls.add("http://www.gsmarena.com/huawei_honor_2-5092.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_7_lite-4882.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g330-4966.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g600-4963.php");
+		urls.add("http://www.gsmarena.com/huawei_fusion_2_u8665-5020.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p1_lte-5022.php");
+		urls.add("http://www.gsmarena.com/huawei_summit-5068.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y-5077.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y100-4839.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_y200-4838.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g330d_u8825d-5383.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_g300-4594.php");
+		urls.add("http://www.gsmarena.com/huawei_g6005-5848.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_q_m5660-4737.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p1-4410.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p1_xl_u9200e-5003.php");
+		urls.add("http://www.gsmarena.com/huawei_fusion_u8652-4656.php");
+		urls.add("http://www.gsmarena.com/huawei_g6609-4698.php");
+		urls.add("http://www.gsmarena.com/huawei_g5520-5108.php");
+		urls.add("http://www.gsmarena.com/huawei_activa_4g-4837.php");
+		urls.add("http://www.gsmarena.com/huawei_g5000-4840.php");
+		urls.add("http://www.gsmarena.com/huawei_g6310-4841.php");
+		urls.add("http://www.gsmarena.com/huawei_g6800-5109.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad_10_fhd-4587.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_d1_xl_u9500e-5002.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_d1-4570.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_d_quad_xl-4569.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_d_quad-4568.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_p1s-4409.php");
+		urls.add("http://www.gsmarena.com/huawei_m886_mercury-4381.php");
+		urls.add("http://www.gsmarena.com/huawei_g7300-4335.php");
+		urls.add("http://www.gsmarena.com/huawei_g7005-4334.php");
+		urls.add("http://www.gsmarena.com/huawei_mediapad-4264.php");
+		urls.add("http://www.gsmarena.com/huawei_u8520_duplex-4260.php");
+		urls.add("http://www.gsmarena.com/huawei_t8300-4636.php");
+		urls.add("http://www.gsmarena.com/huawei_ascend_ii-4057.php");
+		urls.add("http://www.gsmarena.com/huawei_u8850_vision-4109.php");
+		urls.add("http://www.gsmarena.com/huawei_u8860_honor-4197.php");
+		urls.add("http://www.gsmarena.com/huawei_impulse_4g-4142.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_10_a3_a30-7218.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_one_8_b1_820-7217.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a3_a20-7136.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a3_a20fhd-7135.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_jade_z-7072.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z520-7073.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z220-7074.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_e700-6420.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_jade-6423.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_x1-6419.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z500-6635.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_jade_s-6864.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z410-6912.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_m220-7071.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_e600-6421.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z200-6422.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_8_a1_840fhd-6424.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_7_a1_713hd-6342.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_e3-6116.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_e3_duo_plus-6680.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_one_7_b1_730-6341.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_7_a1_713-6343.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z3-5624.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_s2-5670.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z5-5929.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_a1_830-5930.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_b1_720-5932.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_b1_721-5933.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z4-6115.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_s1-5496.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a3-5700.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a1_811-5892.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a1_810-5399.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_e2-5418.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z2-5302.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_c1-5276.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_e1-5262.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_b1_710-5897.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_b1_a71-5239.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a110-5067.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_z110-5057.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_gallant_e350-4924.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_gallant_duo-4871.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a511-4643.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a700-4425.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a701-4934.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a200-4450.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a210-5066.php");
+		urls.add("http://www.gsmarena.com/acer_cloudmobile_s500-4542.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_glow_e330-4589.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a510-4642.php");
+		urls.add("http://www.gsmarena.com/acer_allegro-3966.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_express_e320-4261.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a501-3898.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a100-3841.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a101-3906.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_tab_a500-3907.php");
+		urls.add("http://www.gsmarena.com/acer_iconia_smart-3662.php");
+		urls.add("http://www.gsmarena.com/acer_betouch_e120-3406.php");
+		urls.add("http://www.gsmarena.com/acer_betouch_e130-3373.php");
+		urls.add("http://www.gsmarena.com/acer_betouch_t500-3587.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_mt-3519.php");
+		urls.add("http://www.gsmarena.com/acer_betouch_e140-3666.php");
+		urls.add("http://www.gsmarena.com/acer_betouch_e210-3712.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_mini_e310-3711.php");
+		urls.add("http://www.gsmarena.com/acer_stream-3358.php");
+		urls.add("http://www.gsmarena.com/acer_liquid_e-3156.php");
+		urls.add("http://www.gsmarena.com/acer_neotouch_p400-3155.php");
+		urls.add("http://www.gsmarena.com/acer_betouch_e400-3154.php");
+		urls.add("http://www.gsmarena.com/acer_neotouch_p300-3138.php");
+		urls.add("http://www.gsmarena.com/acer_betouch_e110-3137.php");
+		urls.add("http://www.gsmarena.com/acer_liquid-2968.php");
+		urls.add("http://www.gsmarena.com/acer_neotouch-2958.php");
+		urls.add("http://www.gsmarena.com/zte_blade_s6_plus-7168.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z9_max-7116.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z9_mini-7149.php");
+		urls.add("http://www.gsmarena.com/zte_open_l-7106.php");
+		urls.add("http://www.gsmarena.com/zte_grand_s3-7078.php");
+		urls.add("http://www.gsmarena.com/zte_blade_l3-7105.php");
+		urls.add("http://www.gsmarena.com/zte_blade_g_lux-7057.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x_plus_z826-6904.php");
+		urls.add("http://www.gsmarena.com/zte_star_2-6914.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x_max+-6915.php");
+		urls.add("http://www.gsmarena.com/zte_imperial_ii-7157.php");
+		urls.add("http://www.gsmarena.com/zte_blade_s6-6954.php");
+		urls.add("http://www.gsmarena.com/zte_v5_lux-7056.php");
+		urls.add("http://www.gsmarena.com/zte_blade_g-7058.php");
+		urls.add("http://www.gsmarena.com/zte_speed-6898.php");
+		urls.add("http://www.gsmarena.com/zte_grand_s_ii-6847.php");
+		urls.add("http://www.gsmarena.com/zte_grand_s_pro-7155.php");
+		urls.add("http://www.gsmarena.com/zte_zinger-7156.php");
+		urls.add("http://www.gsmarena.com/zte_blade_vec_3g-6644.php");
+		urls.add("http://www.gsmarena.com/zte_blade_vec_3g-6644.php");
+		urls.add("http://www.gsmarena.com/zte_zmax-6697.php");
+		urls.add("http://www.gsmarena.com/zte_grand_xmax-6718.php");
+		urls.add("http://www.gsmarena.com/zte_kis_3-6579.php");
+		urls.add("http://www.gsmarena.com/zte_kis_3-6579.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z7_mini-6492.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z7_max-6491.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z7-6490.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z5s_mini_nx405h-6607.php");
+		urls.add("http://www.gsmarena.com/zte_kis_3_max-6641.php");
+		urls.add("http://www.gsmarena.com/zte_blade_g2-6381.php");
+		urls.add("http://www.gsmarena.com/zte_star_1-6324.php");
+		urls.add("http://www.gsmarena.com/zte_redbull_v5_v9180-6679.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_x6-6236.php");
+		urls.add("http://www.gsmarena.com/zte_grand_memo_ii_lte-6154.php");
+		urls.add("http://www.gsmarena.com/zte_open_c-6155.php");
+		urls.add("http://www.gsmarena.com/zte_open_ii-6156.php");
+		urls.add("http://www.gsmarena.com/zte_iconic_phablet-5962.php");
+		urls.add("http://www.gsmarena.com/zte_sonata_4g-5963.php");
+		urls.add("http://www.gsmarena.com/zte_grand_s_ii_s291-5948.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z5s-5852.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z5s_mini_nx403a-5853.php");
+		urls.add("http://www.gsmarena.com/zte_grand_s_flex-5834.php");
+		urls.add("http://www.gsmarena.com/zte_blade_q_maxi-5826.php");
+		urls.add("http://www.gsmarena.com/zte_imperial-5552.php");
+		urls.add("http://www.gsmarena.com/zte_reef-5659.php");
+		urls.add("http://www.gsmarena.com/zte_blade_g_v880g-5620.php");
+		urls.add("http://www.gsmarena.com/zte_blade_v-5682.php");
+		urls.add("http://www.gsmarena.com/zte_warp_4g-5755.php");
+		urls.add("http://www.gsmarena.com/zte_blade_q_mini-5824.php");
+		urls.add("http://www.gsmarena.com/zte_blade_q-5825.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x_quad_v987-5376.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x2_in-5455.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x_pro-5499.php");
+		urls.add("http://www.gsmarena.com/zte_vital_n9810-5511.php");
+		urls.add("http://www.gsmarena.com/zte_blade_iii_pro-5425.php");
+		urls.add("http://www.gsmarena.com/zte_geek_v975-5402.php");
+		urls.add("http://www.gsmarena.com/zte_grand_memo_v9815-5330.php");
+		urls.add("http://www.gsmarena.com/zte_open-5320.php");
+		urls.add("http://www.gsmarena.com/zte_v887-5135.php");
+		urls.add("http://www.gsmarena.com/zte_v889m-5136.php");
+		urls.add("http://www.gsmarena.com/zte_avid_4g-5173.php");
+		urls.add("http://www.gsmarena.com/zte_grand_s-5240.php");
+		urls.add("http://www.gsmarena.com/zte_v81-5269.php");
+		urls.add("http://www.gsmarena.com/zte_director-5470.php");
+		urls.add("http://www.gsmarena.com/zte_blade_c_v807-5277.php");
+		urls.add("http://www.gsmarena.com/zte_kis_iii_v790-5134.php");
+		urls.add("http://www.gsmarena.com/zte_groove_x501-5133.php");
+		urls.add("http://www.gsmarena.com/zte_nubia_z5-5647.php");
+		urls.add("http://www.gsmarena.com/zte_flash-4893.php");
+		urls.add("http://www.gsmarena.com/zte_anthem_4g-5006.php");
+		urls.add("http://www.gsmarena.com/zte_warp_sequent-5007.php");
+		urls.add("http://www.gsmarena.com/zte_grand_era_u895-5004.php");
+		urls.add("http://www.gsmarena.com/zte_blade_iii-4983.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x_in-4962.php");
+		urls.add("http://www.gsmarena.com/zte_n880e-4880.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x_lte_t82-4873.php");
+		urls.add("http://www.gsmarena.com/zte_grand_x_v970-4597.php");
+		urls.add("http://www.gsmarena.com/zte_u880e-4776.php");
+		urls.add("http://www.gsmarena.com/zte_score_m-4650.php");
+		urls.add("http://www.gsmarena.com/zte_pf112_hd-4582.php");
+		urls.add("http://www.gsmarena.com/zte_era-4581.php");
+		urls.add("http://www.gsmarena.com/zte_light_tab_3_v9s-4592.php");
+		urls.add("http://www.gsmarena.com/zte_t98-4591.php");
+		urls.add("http://www.gsmarena.com/zte_pf_100-4590.php");
+		urls.add("http://www.gsmarena.com/zte_v96-4593.php");
+		urls.add("http://www.gsmarena.com/zte_skate_acqua-4583.php");
+		urls.add("http://www.gsmarena.com/zte_orbit-4585.php");
+		urls.add("http://www.gsmarena.com/zte_kis_v788-4586.php");
+		urls.add("http://www.gsmarena.com/zte_v880e-4598.php");
+		urls.add("http://www.gsmarena.com/zte_light_tab_2_v9a-4467.php");
+		urls.add("http://www.gsmarena.com/zte_optik-4506.php");
+		urls.add("http://www.gsmarena.com/zte_pf200-4556.php");
+		urls.add("http://www.gsmarena.com/zte_n910-4557.php");
+		urls.add("http://www.gsmarena.com/zte_blade_ii_v880+-4608.php");
+		urls.add("http://www.gsmarena.com/zte_v875-4607.php");
+		urls.add("http://www.gsmarena.com/zte_tania-4304.php");
+		urls.add("http://www.gsmarena.com/zte_warp-4313.php");
+		urls.add("http://www.gsmarena.com/zte_score-4311.php");
+		urls.add("http://www.gsmarena.com/zte_v9-3903.php");
+		urls.add("http://www.gsmarena.com/zte_n721-4760.php");
+		urls.add("http://www.gsmarena.com/zte_skate-3784.php");
+		urls.add("http://www.gsmarena.com/zte_avail-4244.php");
+		urls.add("http://www.gsmarena.com/zte_u900-3791.php");
+		urls.add("http://www.gsmarena.com/zte_libra-3790.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_go-6466.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_7c_at7_b8-6467.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_pro-5500.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_write-5501.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_pure-5502.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_10_se-5154.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_13_at335-4691.php");
+		urls.add("http://www.gsmarena.com/toshiba_thrive-3970.php");
+		urls.add("http://www.gsmarena.com/toshiba_windows_phone_is12t-4076.php");
+		urls.add("http://www.gsmarena.com/toshiba_thrive_7-4203.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_at200-4400.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_7_7_at275-4693.php");
+		urls.add("http://www.gsmarena.com/toshiba_excite_10_at305-4692.php");
+		urls.add("http://www.gsmarena.com/toshiba_tg02-3159.php");
+		urls.add("http://www.gsmarena.com/toshiba_tg01-2662.php");
+		urls.add("http://www.gsmarena.com/toshiba_g810-2273.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_2_ze500cl-7044.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_2_ze550ml-7120.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_2_ze551ml-6917.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_7_fe375cl-7045.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_c_zc451cg-6982.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_7_fe171cg-6953.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_zoom_zx550-6918.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_5_a500kl-6429.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_7_me572c-6629.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_7_me572cl-6630.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_x_mini-6737.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_10_me103k-6751.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_5_lite_a502cg-6813.php");
+		urls.add("http://www.gsmarena.com/asus_pegasus-6897.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_4_a450cg-6428.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_8_me581cl-6414.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_8_me181c-6413.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_7_me176c-6412.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_7_fe375cg-6410.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_7_fe375cxg-6747.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_8_fe380cg-6411.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_6_a601cg-6853.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_e-5993.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_infinity_lite-6120.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_s-6238.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_x-6519.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_7_%282014%29-6394.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_6-5953.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_5_a501cg-7160.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_5_a500cg-5952.php");
+		urls.add("http://www.gsmarena.com/asus_zenfone_4-5951.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_mini_4g_%28intel%29-7158.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_mini_%28intel%29-5982.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_mini-5891.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_infinity_2-5706.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_10-5676.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_8_me180a-5675.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_7-5674.php");
+		urls.add("http://www.gsmarena.com/asus_google_nexus_7_%282013%29-5600.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad_note_fhd6-5494.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_infinity-5328.php");
+		urls.add("http://www.gsmarena.com/asus_fonepad-5329.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_hd7_16_gb-5492.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_hd7_8_gb-5879.php");
+		urls.add("http://www.gsmarena.com/asus_memo_pad_me172v-5249.php");
+		urls.add("http://www.gsmarena.com/asus_google_nexus_7_cellular-5091.php");
+		urls.add("http://www.gsmarena.com/asus_padfone_2-5017.php");
+		urls.add("http://www.gsmarena.com/asus_p835-2727.php");
+		urls.add("http://www.gsmarena.com/asus_p550-2193.php");
+		urls.add("http://www.gsmarena.com/asus_padfone-3965.php");
+		urls.add("http://www.gsmarena.com/asus_memo-4422.php");
+		urls.add("http://www.gsmarena.com/asus_e600-3696.php");
+		
+		
 		return urls;
 	}
 }
